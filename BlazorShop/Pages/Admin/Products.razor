@@ -1,0 +1,301 @@
+﻿@page "/admin/products"
+@using BlazorShop.Entities
+@using BlazorColorPicker
+@inject BlazorShop.Service.IProductService ProductService
+@inject BlazorShop.Service.ICategoryService CategoryService
+@inject BlazorShop.Service.ISizeService SizeService
+@inject BlazorShop.Service.IColorService ColorService
+@inject MessageService _message
+@inject ModalService _modalService
+@layout AdminLayout
+@if (products[0].Category == null)
+{
+    <div class="loading"><Icon Type="loading" Height="40px" Width="40px" Theme="outline" /></div>
+}
+else
+{
+    <div class="d-flex justify-content-between">
+        <h4 style="display: inline-block;">Quản lý Sản phẩm</h4>
+        <div>
+            <Button Type="@ButtonType.Primary" OnClick="@showFormAdd">Thêm</Button>
+            <Tooltip Title="@IconType.Outline.Search">
+                <Button Type="@ButtonType.Primary" Icon="@IconType.Outline.Search" />
+            </Tooltip>
+        </div>
+    </div>
+    <Table @ref="table"
+       TItem="Product"
+       DataSource="@products">
+        <Selection Key="@context.Id" />
+        <Column Title="Tên Sản phẩm" @bind-Field="@context.Name" Sortable />
+        <Column Title="Giá bán" @bind-Field="@context.Price" Sortable />
+        <Column Title="Giá nhập" @bind-Field="@context.PriceImport" Sortable />
+        <Column Title="Tồn kho" @bind-Field="@context.Amount" Sortable />
+        <ActionColumn Title="Chỉnh sửa">
+            <Space>
+                <SpaceItem>
+                    <Tooltip Title="@IconType.Outline.Edit">
+                        <Button Type="@ButtonType.Primary" Shape="@ButtonShape.Circle" Icon="@IconType.Outline.Edit" OnClick="@(()=>showFormUpdate(context))" />
+                    </Tooltip>
+                </SpaceItem><SpaceItem>
+                    <Tooltip Title="@IconType.Outline.Delete">
+                        <Button Danger Type="@ButtonType.Primary" Shape="@ButtonShape.Circle" Icon="@IconType.Outline.Delete" OnClick="@(()=>showConfirmDelete(context.Id))" />
+                    </Tooltip>
+                </SpaceItem>
+            </Space>
+        </ActionColumn>
+    </Table>
+    <Modal Title="@title"
+       Visible="@_visibleDelete"
+       OnOk="@HandleDelete"
+       OkType="danger"
+       OnCancel="@(()=>_visibleDelete = false)"
+       MaxBodyHeight="@("30vh")"
+       WrapClassName="modal-delete">
+        <div>
+            <p>
+                Bạn có chắc muốn xóa Sản phẩm này?
+            </p>
+        </div>
+    </Modal>
+    <Modal Title="@(isUpdate ? titleUpdate : titleAdd)"
+       Visible="@_visibleFormAddUpdate"
+       OnOk="@(isUpdate ? HandleUpdateProduct : HandleAddProduct)"
+       OnCancel="@(()=>_visibleFormAddUpdate = false)"
+       MaxBodyHeight="@("60vh")"
+       Width="@("600px")">
+        <Form Model="@product"
+          LabelColSpan="8"
+          WrapperColSpan="16">
+
+            <FormItem Label="Tên sản phẩm">
+                <Input @bind-Value="@context.Name" />
+            </FormItem>
+            <FormItem Label="Loại sản phẩm">
+                <Select DataSource="@categories"
+                    @bind-Value="@categoryName"
+                    LabelName="@nameof(Category.Name)"
+                    ValueName="@nameof(Category.Name)"
+                    Placeholder="Chọn Loại sản phẩm"
+                    DefaultActiveFirstItem="false"
+                    OnSelectedItemChanged="OnSelectionChange"
+                    EnableSearch>
+                </Select>
+            </FormItem>
+            <FormItem Label="Kích thước (Size)">
+                <Select Mode="multiple"
+                    @bind-Values="@sizesOfProduct"
+                    Placeholder="Please select"
+                    TItemValue="Size"
+                    TItem="Size"
+                    Size="@_sizeValue"
+                    Style="width: 100%; margin-bottom: 8px;"
+                    OnSelectedItemsChanged="OnSelectedSizesChangedHandler">
+                    <SelectOptions>
+                        @foreach (var item in sizes)
+                    {
+                        <SelectOption TItemValue="Size" TItem="Size" Value=@item Label=@item.Name />
+                    }
+                </SelectOptions>
+            </Select>
+        </FormItem>
+        <FormItem Label="Màu sắc">
+            <Select Mode="multiple"
+                    @bind-Values="@colorsOfProduct"
+                    Placeholder="Please select"
+                    TItemValue="ColorDB"
+                    TItem="ColorDB"
+                    Size="@_sizeValue"
+                    Style="width: 100%; margin-bottom: 8px;"
+                    OnSelectedItemsChanged="OnSelectedColorsChangedHandler">
+                <SelectOptions>
+                    @foreach (var item in colors)
+                    {
+                        <SelectOption TItemValue="ColorDB" TItem="ColorDB" Value=@item Label=@item.Name />
+                    }
+                </SelectOptions>
+            </Select>
+        </FormItem>
+        <FormItem Label="Mô tả sản phẩm">
+            <TextArea @bind-Value="@context.Description" />
+        </FormItem>
+        <FormItem Label="Giá nhập">
+            <AntDesign.InputNumber @bind-Value="@context.PriceImport" />
+        </FormItem>
+        <FormItem Label="Giá bán">
+            <AntDesign.InputNumber @bind-Value="@context.Price" />
+        </FormItem>
+        <FormItem Label="Số lượng hiện có">
+            <AntDesign.InputNumber @bind-Value="@context.Amount" />
+        </FormItem>
+        <FormItem Label="Số lượng hiện có">
+            <Upload Action="https://www.mocky.io/v2/5cc8019d300000980a055e76"
+                    Name="avatar"
+                    @bind-FileList="fileList"
+                    ShowButton="fileList?.Count < 8"
+                    ListType="picture-card"
+                    OnPreview="(file)=> {
+                           Console.WriteLine(file.FileName);
+                           Console.WriteLine(file.Url);
+                           previewVisible = true;
+                           previewTitle = file.FileName;
+                           imgUrl = file.Url;
+                       }"
+                    OnChange="HandleChange">
+                <div>
+                    <Icon Type="plus"></Icon>
+                    <div className="ant-upload-text">Upload</div>
+                </div>
+
+            </Upload>
+        </FormItem>
+    </Form>
+</Modal>
+
+}
+
+
+@code {
+    List<Product> products = new List<Product>();
+    List<Category> categories = new List<Category>();
+    List<Size> sizes = new List<Size>();
+    List<ColorDB> colors = new List<ColorDB>();
+    Product product = new Product();
+    Category categoryOfProduct = new Category();
+    IEnumerable<Size> sizesOfProduct = new List<Size>();
+    IEnumerable<ColorDB> colorsOfProduct = new List<ColorDB>();
+    private string _sizeValue = AntSizeLDSType.Default;
+    List<string> _items;
+    string idDelete = "";
+    string title = "Cảnh Báo !!!";
+    string titleAdd = "Thêm Sản phẩm";
+    string titleUpdate = "Sửa Sản phẩm";
+    private string categoryName;
+    bool _visibleDelete = false;
+    bool _visibleFormAddUpdate = false;
+    bool isUpdate = false;
+
+    bool previewVisible = false;
+    string previewTitle = string.Empty;
+    string imgUrl = string.Empty;
+    List<UploadFileItem> fileList = new List<UploadFileItem>();
+    ITable table;
+    protected override void OnInitialized()
+    {
+        getData();
+    }
+    private void getData()
+    {
+        products = ProductService.GetAllProducts();
+        categories = CategoryService.GetAllCategories();
+        sizes = SizeService.GetAllSize();
+        colors = ColorService.GetAllColor();
+        foreach (Product s in products)
+        {
+            s.Category = categories.Where(x => s.CategoryId == x.Id).FirstOrDefault();
+        }
+    }
+
+    private void showConfirmDelete(string id)
+    {
+        idDelete = id;
+        _visibleDelete = true;
+    }
+    private void HandleDelete(MouseEventArgs e)
+    {
+        products = products.Where(x => x.Id != idDelete).ToList();
+        bool s = ProductService.Delete(idDelete);
+        _visibleDelete = false;
+    }
+    private void showFormAdd()
+    {
+        isUpdate = false;
+        product = new Product();
+        categoryOfProduct = new Category();
+        sizesOfProduct = new List<Size>();
+        colorsOfProduct = new List<ColorDB>();
+        _visibleFormAddUpdate = true;
+    }
+    private void showFormUpdate(Product productUpdate)
+    {
+        isUpdate = true;
+        product = ProductService.GetProductFromId(productUpdate.Id);
+        sizesOfProduct = product.Sizes;
+        colorsOfProduct = product.ColorDBs;
+        categoryOfProduct = product.Category;
+        categoryName = categoryOfProduct.Name;
+        _visibleFormAddUpdate = true;
+    }
+    private void HandleAddProduct(MouseEventArgs e)
+    {
+        colectProduct();
+        ProductService.Add(product);
+        getData();
+        _visibleFormAddUpdate = false;
+    }
+    private void HandleUpdateProduct(MouseEventArgs e)
+    {
+        colectProduct();
+        ProductService.Update(product);
+        getData();
+        _visibleFormAddUpdate = false;
+    }
+    private void colectProduct()
+    {
+        product.Category = categoryOfProduct;
+        product.Sizes = sizesOfProduct?.ToList();
+        product.ColorDBs = colorsOfProduct?.ToList();
+        Console.WriteLine(product.Sizes.Count());
+        Console.WriteLine(product.ColorDBs.Count());
+
+    }
+    Func<object, object, bool> CompareWith = (a, b) =>
+    {
+        if (a is Category o1 && b is Category o2)
+        {
+            return o1.Name == o2.Name;
+        }
+        else
+        {
+            return false;
+        }
+    };
+    void OnSelectionChange(Category item)
+    {
+        categoryOfProduct = item;
+    }
+    private void OnSelectedItemChangedHandler(string value)
+    {
+        Console.WriteLine($"selected: ${value}");
+    }
+
+    private void OnSelectedColorsChangedHandler(IEnumerable<ColorDB> values)
+    {
+        if (values != null)
+            Console.WriteLine(colorsOfProduct.Count());
+    }
+    private void OnSelectedSizesChangedHandler(IEnumerable<Size> values)
+    {
+        if (values != null)
+            Console.WriteLine(sizesOfProduct.Count());
+    }
+    void HandleChange(UploadInfo fileinfo)
+    {
+        if (fileinfo.File.State == UploadState.Success)
+        {
+            fileinfo.File.Url = fileinfo.File.ObjectURL;
+        }
+    }
+
+    public class ResponseModel
+    {
+        public string name { get; set; }
+
+        public string status { get; set; }
+
+        public string url { get; set; }
+
+        public string thumbUrl { get; set; }
+    }
+}
+
